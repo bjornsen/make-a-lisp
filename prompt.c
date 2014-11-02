@@ -5,6 +5,7 @@
 
 #include "mpc.h"
 
+
 void print_children_details(mpc_ast_t* ast) {
 	mpc_ast_t* child;
 	for (int i = 0; i < ast->children_num; i++) {
@@ -15,6 +16,41 @@ void print_children_details(mpc_ast_t* ast) {
 		printf("Child %i number of children: %i\n", i, child->children_num);
 		printf("\n");
 	}
+}
+
+float eval_op(char* op, float x, float y) {
+	if (strcmp(op, "+") == 0) { return x + y; }
+	if (strcmp(op, "-") == 0) { return x - y; }
+	if (strcmp(op, "*") == 0) { return x * y; }
+	if (strcmp(op, "/") == 0) { return x / y; }
+	return 0;
+}
+
+float eval(mpc_ast_t* ast) {
+	
+	// Return numbers immediately
+	if (strstr(ast->tag, "number")) {
+		return atoi(ast->contents);
+	}
+	
+	// Operators are always the second child
+	char* op = ast->children[1]->contents;
+	
+	float x = eval(ast->children[2]);
+			
+	// Account for negative numbers
+	if (strcmp(op, "-") == 0 && ast->children_num == 4) {
+		return -x;
+	}
+	
+	// Evalute remaining child expressions
+	int i = 3;
+	while (strstr(ast->children[i]->tag, "expr")) {
+		x = eval_op(op, x, eval(ast->children[i]));
+		i++;
+	}
+	
+	return x;
 }
 
 int main(int argc, char** argv) {
@@ -30,7 +66,7 @@ int main(int argc, char** argv) {
   	"                                                    \
 			number	 : /-?[0-9]+/ ;																				\
 			float    : <number> '.' <number>;	                           \
-  		operator : '+' | '-' | '*' | '/' | '%';                  \
+  		operator : '+' | '-' | '*' | '/' | '^';                  \
   		expr     : <float> | <number> | '(' <operator> <expr>+ ')' ; \
   		bilisp   : /^/ <operator> <expr>+ /$/ ;            \
   	",
@@ -50,13 +86,9 @@ int main(int argc, char** argv) {
 		if (mpc_parse("<stdin>", input, Bilisp, &r)) {
 			mpc_ast_t* ast = r.output;
 			
-			printf("------ Abstract Syntax Tree ------\n");
+			float result = eval(ast);
+			printf("%f\n", result);
 			mpc_ast_print(ast);
-			
-			printf("Tags: %s\n", ast->tag);
-			printf("Contents: %s\n", ast->contents);
-			printf("Number of children: %i\n", ast->children_num);
-			
 			mpc_ast_delete(ast);
 			
 		} else {
