@@ -5,6 +5,55 @@
 
 #include "mpc.h"
 
+// Lisp value (lval) types
+enum { LVAL_NUM, LVAL_ERR };
+
+// Error types
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+// Defines possible return values for a lisp value
+typedef struct {
+	int type;
+	float num;
+	int err;
+} lval;
+
+
+lval lval_num(float x) {
+	lval v;
+	v.type = LVAL_NUM;
+	v.num = x;
+	return v;
+}
+
+lval lval_err(int x) {
+	lval v;
+	v.type = LVAL_ERR;
+	v.err = x;
+  return v;
+}
+
+// Print an lval
+void lval_print(lval v) {
+	
+	if (v.type == LVAL_NUM) {
+		printf("%f", v.num);
+	}
+	
+	if (v.type == LVAL_ERR) {
+		if (v.err == LERR_DIV_ZERO) {
+			printf("Error: Division by zero");
+		}
+		if (v.err == LERR_BAD_OP) {
+			printf("Error:  Invalid operator");
+		}
+		if (v.err == LERR_BAD_NUM) {
+			printf("Error:  Invalid number");
+		}
+	}
+	
+	printf("\n");
+}
 
 void print_children_details(mpc_ast_t* ast) {
 	mpc_ast_t* child;
@@ -18,13 +67,21 @@ void print_children_details(mpc_ast_t* ast) {
 	}
 }
 
-float eval_op(char* op, float x, float y) {
-	if (strcmp(op, "+") == 0) { return x + y; }
-	if (strcmp(op, "-") == 0) { return x - y; }
-	if (strcmp(op, "*") == 0) { return x * y; }
-	if (strcmp(op, "/") == 0) { return x / y; }
+lval eval_op(char* op, lval x, lval y) {
+	
+	if (x.type == LVAL_ERR) { return x; }
+	if (y.type == LVAL_ERR) { return y; } 
+	
+	if (strcmp(op, "+") == 0) { return lval_num(x.num + y.num); }
+	if (strcmp(op, "-") == 0) { return lval_num(x.num - y.num); }
+	if (strcmp(op, "*") == 0) { return lval_num(x.num * y.num); }
+	if (strcmp(op, "/") == 0) {
+		return y.num == 0
+			? lval_err(LERR_DIV_ZERO)
+			: lval_num(x.num / y.num); 
+	}
 	if (strcmp(op, "max") == 0) {
-		if (x > y) {
+		if (x.num > y.num) {
 			return x;
 		}
 		else {
@@ -32,31 +89,36 @@ float eval_op(char* op, float x, float y) {
 		}
 	}
 	if (strcmp(op, "min") == 0) {
-		if (x < y) {
+		if (x.num < y.num) {
 			return x;
 		}
 		else {
 			return y;
 		}
 	}
-	return 0;
+	
+	return lval_err(LERR_BAD_OP);
 }
 
-float eval(mpc_ast_t* ast) {
+lval eval(mpc_ast_t* ast) {
 	
 	// Return numbers immediately
 	if (strstr(ast->tag, "number")) {
-		return atoi(ast->contents);
+		// Error checking
+		errno = 0;
+		float x = strtof(ast->contents, NULL);
+		return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
 	}
 	
 	// Operators are always the second child
 	char* op = ast->children[1]->contents;
 	
-	float x = eval(ast->children[2]);
+	lval x = eval(ast->children[2]);
 			
-	// Account for negative numbers
+	/* Account for negative numbers.  Children_num is 4 because that indicates
+	 * there is only one number in addition to the operator */
 	if (strcmp(op, "-") == 0 && ast->children_num == 4) {
-		return -x;
+		return lval_num(-x.num);
 	}
 	
 	// Evalute remaining child expressions
@@ -110,9 +172,9 @@ int main(int argc, char** argv) {
 		if (mpc_parse("<stdin>", input, Bilisp, &r)) {
 			mpc_ast_t* ast = r.output;
 			
-			float result = eval(ast);
-			printf("%f\n", result);
-			mpc_ast_print(ast);
+			lval result = eval(ast);
+			lval_print(result);
+
 			mpc_ast_delete(ast);
 			
 		} else {
