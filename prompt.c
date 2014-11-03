@@ -23,6 +23,22 @@ float eval_op(char* op, float x, float y) {
 	if (strcmp(op, "-") == 0) { return x - y; }
 	if (strcmp(op, "*") == 0) { return x * y; }
 	if (strcmp(op, "/") == 0) { return x / y; }
+	if (strcmp(op, "max") == 0) {
+		if (x > y) {
+			return x;
+		}
+		else {
+			return y;
+		}
+	}
+	if (strcmp(op, "min") == 0) {
+		if (x < y) {
+			return x;
+		}
+		else {
+			return y;
+		}
+	}
 	return 0;
 }
 
@@ -63,12 +79,20 @@ int main(int argc, char** argv) {
 	mpc_parser_t* Bilisp = mpc_new("bilisp");
 
 	mpca_lang(MPCA_LANG_DEFAULT,
-  	"                                                    \
-			number	 : /-?[0-9]+/ ;																				\
-			float    : <number> '.' <number>;	                           \
-  		operator : '+' | '-' | '*' | '/' | '^';                  \
-  		expr     : <float> | <number> | '(' <operator> <expr>+ ')' ; \
-  		bilisp   : /^/ <operator> <expr>+ /$/ ;            \
+  	" \
+			number	 : /-?[0-9]+/ ;	\
+			float    : <number> '.' <number> ;	\
+  		operator : '+' \
+  						 | '-' \
+  						 | '*' \
+  						 | '/' \
+  						 | '^' \
+  						 | \"max\" \
+  						 | \"min\" ; \
+  		expr     : <float> \
+  						 | <number> \
+  						 | '(' <operator> <expr>+ ')' ; \
+  		bilisp   : /^/ <operator> <expr>+ /$/ ; \
   	",
   	Number, Float, Operator, Expr, Bilisp);
 	
