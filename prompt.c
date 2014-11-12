@@ -83,11 +83,13 @@ lval eval_op(char* op, lval x, lval y) {
 	if (x.type == LVAL_ERR) { return x; }
 	if (y.type == LVAL_ERR) { return y; } 
 	
+	// If both values are integers, operate on the integers
 	if ((x.type == LVAL_INT) && (y.type == LVAL_INT)) { 
 			
 		if (strcmp(op, "+") == 0) { return lval_int(x.i + y.i); }
 		if (strcmp(op, "-") == 0) { return lval_int(x.i - y.i); }
 		if (strcmp(op, "*") == 0) { return lval_int(x.i * y.i); }
+		if (strcmp(op, "%") == 0) { return lval_int(x.i % y.i); }
 		if (strcmp(op, "/") == 0) {
 			if (y.i == 0) {
 				return lval_err(LERR_DIV_ZERO);
@@ -119,6 +121,7 @@ lval eval_op(char* op, lval x, lval y) {
 	} 
 	// If any values are float, the result will need to be a float
 	else {
+		// Explicitly cast any integers to floats
 		if (x.type == LVAL_INT) {
 			x = lval_float(x.i);
 		}
@@ -159,14 +162,10 @@ lval parse_float(mpc_ast_t* ast) {
 	errno = 0;
 	int size = ast->children_num * sizeof(char);
 	char f[size];
-	printf("Concat float is initialized to %s\n", f);
 	for (int i = 0; i < ast->children_num; i++) {
 		f[i] = *ast->children[i]->contents;
-		printf("Child is %s\n", ast->children[i]->contents);
-		printf("Float is now %s\n", f);
 	}
 	float x = strtof(f, NULL);
-	printf("Final float is %f\n", x);
 	return errno != ERANGE ? lval_float(x) : lval_err(LERR_BAD_NUM);
 }
 
@@ -224,6 +223,7 @@ int main(int argc, char** argv) {
   						 | '*' \
   						 | '/' \
   						 | '^' \
+  						 | '%' \
   						 | \"max\" \
   						 | \"min\" ; \
   		expr     : <float> \
