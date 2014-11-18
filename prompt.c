@@ -233,29 +233,26 @@ lval* builtin_op(lval* a, char* op) {
 				y = lval_float((float) y->i);
 			}
 			
-			if (strcmp(op, "+") == 0) { return lval_float(x->f + y->f); }
-			if (strcmp(op, "-") == 0) { return lval_float(x->f - y->f); }
-			if (strcmp(op, "*") == 0) { return lval_float(x->f * y->f); }
+			if (strcmp(op, "+") == 0) { x->f += y->f; }
+			if (strcmp(op, "-") == 0) { x->f -= y->f; }
+			if (strcmp(op, "*") == 0) { x->f *= y->f; }
 			if (strcmp(op, "/") == 0) {
-				return y->f == 0
-					? lval_err("Division by zero!")
-					: lval_float(x->f / y->f); 
+				if (y->f == 0) {
+					return lval_err("Division by zero!");
+				} 
+				else {
+					x->f /= y->f; 
+				}
 			}
 		
 		if (strcmp(op, "max") == 0) {
-			if (x->f > y->f) {
-				return x;
-			}
-			else {
-				return y;
+			if (x->f < y->f) {
+				x = y;
 			}
 		}
 		if (strcmp(op, "min") == 0) {
-			if (x->f < y->f) {
-				return x;
-			}
-			else {
-				return y;
+			if (x->f > y->f) {
+				x = y;
 			}
 		}
 			
@@ -386,8 +383,12 @@ int main(int argc, char** argv) {
 			mpc_ast_t* ast = r.output;
 			
 			mpc_ast_print(ast);
-						
-			lval* x = lval_eval(lval_read(ast));
+			
+			lval* l = lval_read(ast);
+			
+			lval_println(l);
+			
+			lval* x = lval_eval(l);
 			lval_println(x);
 			
 			lval_del(x);
