@@ -208,13 +208,16 @@ lval* builtin_op(lval* a, char* op) {
 	lval* x = lval_pop(a, 0);
 	bool is_float = false;
 	
+	if (x->type == LVAL_FLOAT) {
+		is_float = true;
+	}
+	
 	if ((strcmp(op, "-") == 0) && a->count == 0) {
-		if (x->type == LVAL_INT) {
-			x->i = -x->i;
+		if (is_float) {
+			x->f = -x->f;
 		}
 		else {
-			is_float = true;
-			x->f = -x->f;
+			x->i = -x->i;
 		}
 	}
 	
