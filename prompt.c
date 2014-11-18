@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <editline/readline.h>
 
@@ -64,7 +65,7 @@ lval* lval_err(char* m) {
 
 void lval_del(lval* v) {
 	
-	switch (v-> type) {
+	switch (v->type) {
 		case LVAL_ERR: free(v->err); break;
 		case LVAL_SYM: free(v->sym); break;
 		
@@ -132,6 +133,7 @@ lval* lval_read(mpc_ast_t* ast) {
 }
 
 void lval_print(lval* v);
+
 void lval_expr_print(lval* list, char open, char close) {
 	putchar(open);
 	for (int i = 0; i < list->count; i++) {
@@ -169,64 +171,76 @@ void print_children_details(mpc_ast_t* ast) {
 	}
 }
 
-lval* eval_op(char* op, lval* x, lval* y) {
+lval* lval_pop(lval* v, int i) {
+	// Get the item at "i"
+	lval* item = v->cell[i];
 	
-	if (x->type == LVAL_ERR) { return x; }
-	if (y->type == LVAL_ERR) { return y; } 
+	// Shift memory after the item at "i" over the top
+	memmove(&v->cell[i], &v->cell[i+1], sizeof(lval*) * (v->count-i-1));
 	
-	// If both values are integers, operate on the integers
-	if ((x->type == LVAL_INT) && (y->type == LVAL_INT)) { 
-			
-		if (strcmp(op, "+") == 0) { return lval_int(x->i + y->i); }
-		if (strcmp(op, "-") == 0) { return lval_int(x->i - y->i); }
-		if (strcmp(op, "*") == 0) { return lval_int(x->i * y->i); }
-		if (strcmp(op, "%") == 0) { return lval_int(x->i % y->i); }
-		if (strcmp(op, "/") == 0) {
-			if (y->i == 0) {
-				return lval_err(LERR_DIV_ZERO);
-			}
-			else if (x->i % y->i == 0) {
-				return lval_int(x->i / y->i);
-			}
-			else {
-				
-				return lval_float((float)x->i / (float)y->i);
-			}
-		}
-		if (strcmp(op, "max") == 0) {
-			if (x->i > y->i) {
-				return x;
-			}
-			else {
-				return y;
-			}
-		}
-		if (strcmp(op, "min") == 0) {
-			if (x->i < y->i) {
-				return x;
-			}
-			else {
-				return y;
-			}
-		}
-	} 
-	// If any values are float, the result will need to be a float
-	else {
-		// Explicitly cast any integers to floats
+	// Decrease the count
+	v->count--;
+	
+	// Reallocate the memory used
+	v->cell = realloc(v->cell, sizeof(lval*) * v->count);
+	return item;
+}
+
+lval* lval_take(lval* v, int i) {
+	lval* item = lval_pop(v, i);
+	lval_del(v);
+	return item;
+}
+
+lval* builtin_op(lval* a, char* op) {
+	
+//	for (int i = 0; i < a->count; i++) {
+//		lval* x = a->cell[i];
+//		int type = x->type;
+//		printf("Type is %i", type);
+//		printf("Type is %i", LVAL_INT);
+//		if ((type != LVAL_INT) || (type != LVAL_FLOAT))  {
+//			lval_del(a);
+//			return lval_err("Cannot operate on non-number!");
+//		}
+//	}
+	
+	lval* x = lval_pop(a, 0);
+	bool is_float = false;
+	
+	if ((strcmp(op, "-") == 0) && a->count == 0) {
 		if (x->type == LVAL_INT) {
-			x = lval_float(x->i);
+			x->i = -x->i;
 		}
-		if (y->type == LVAL_INT) {
-			y = lval_float(y->i);
+		else {
+			is_float = true;
+			x->f = -x->f;
 		}
-		if (strcmp(op, "+") == 0) { return lval_float(x->f + y->f); }
-		if (strcmp(op, "-") == 0) { return lval_float(x->f - y->f); }
-		if (strcmp(op, "*") == 0) { return lval_float(x->f * y->f); }
-		if (strcmp(op, "/") == 0) {
-			return y->f == 0
-				? lval_err(LERR_DIV_ZERO)
-				: lval_float(x->f / y->f); 
+	}
+	
+	while (a->count > 0) {
+		
+		lval* y = lval_pop(a, 0);
+		
+		if (y->type == LVAL_FLOAT && !is_float) {
+			is_float = true;
+			x = lval_float((float) x->i);
 		}
+		
+		if (is_float) {
+			
+			if (y->type == LVAL_INT) {
+				y = lval_float((float) y->i);
+			}
+			
+			if (strcmp(op, "+") == 0) { return lval_float(x->f + y->f); }
+			if (strcmp(op, "-") == 0) { return lval_float(x->f - y->f); }
+			if (strcmp(op, "*") == 0) { return lval_float(x->f * y->f); }
+			if (strcmp(op, "/") == 0) {
+				return y->f == 0
+					? lval_err("Division by zero!")
+					: lval_float(x->f / y->f); 
+			}
 		
 		if (strcmp(op, "max") == 0) {
 			if (x->f > y->f) {
@@ -244,45 +258,86 @@ lval* eval_op(char* op, lval* x, lval* y) {
 				return y;
 			}
 		}
+			
+		} 
+		// Integer operations
+		else {
+			if (strcmp(op, "+") == 0) { x->i += y->i; }
+			if (strcmp(op, "-") == 0) { x->i -= y->i; }
+			if (strcmp(op, "*") == 0) { x->i *= y->i; }
+			if (strcmp(op, "%") == 0) { x->i %= y->i; }
+			if (strcmp(op, "/") == 0) {
+				if (y->i == 0) {
+					return lval_err("Division by zero!");
+				}
+				else if (x->i % y->i == 0) {
+					x->i /= y->i;
+				}
+				else {
+					x = lval_float((float)x->i / (float)y->i);
+				}
+			}
+			if (strcmp(op, "max") == 0) {
+				if (x->i < y->i) {
+					x = y;
+				}
+			}
+			if (strcmp(op, "min") == 0) {
+				if (x->i > y->i) {
+					x = y;
+				}
+			}
+		}
+		lval_del(y);
 	}
 	
-	return lval_err("Bad operator!");
+	lval_del(a);
+	return x;
 }
 
-lval* eval(mpc_ast_t* ast) {
+lval* lval_eval(lval* v);
+
+lval* lval_eval_sexpr(lval* v) {
 	
-	// Return numbers immediately
-	if (strstr(ast->tag, "integer")) {
-		// Error checking
-		errno = 0;
-		long x = strtol(ast->contents, NULL, 10);
-		return errno != ERANGE ? lval_int(x) : lval_err(LERR_BAD_NUM);
+	// Evaluate children
+	for (int i = 0; i < v-> count; i++) {
+		v->cell[i] = lval_eval(v->cell[i]);
 	}
 	
-	if (strstr(ast->tag, "float")) {
-		// Error checking
-		return lval_read_float(ast);
+	// Error checking
+	for (int i = 0; i < v->count; i++) {
+		lval* x = v->cell[i];
+		int type = x->type;
+		if (type == LVAL_ERR) {
+			return lval_take(v, i);
+		}
 	}
 	
-	// Operators are always the second child
-	char* op = ast->children[1]->contents;
+	// Empty expression
+	if (v->count == 0 ) { return v; }
 	
-	lval* x = eval(ast->children[2]);
-			
-	/* Account for negative numbers.  Children_num is 4 because that indicates
-	 * there is only one number in addition to the operator */
-	if (strcmp(op, "-") == 0 && ast->children_num == 4) {
-		return lval_float(-x->f);
+	// Single expression
+	if (v-> count == 1) { return lval_take(v, 0); }
+	
+	// Ensure first element is a symbol
+	lval* first = lval_pop(v, 0);
+	if (first->type != LVAL_SYM) {
+		lval_del(first); 
+		lval_del(v);
+		return lval_err("S-expression does not start with a symbol!");
 	}
 	
-	// Evalute remaining child expressions
-	int i = 3;
-	while (strstr(ast->children[i]->tag, "expr") || strstr(ast->children[i]->tag, "float")) {
-		x = eval_op(op, x, eval(ast->children[i]));
-		i++;
-	}
-	
-	return x;
+	// Call builtin with operator
+	lval* result = builtin_op(v, first->sym);
+	lval_del(first);
+	return result;
+}
+
+lval* lval_eval(lval* v) {
+	// Evaluate S-expressions
+	if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(v); }
+	// Return anything that isn't a S-expression
+	return v;
 }
 
 int main(int argc, char** argv) {
@@ -332,8 +387,10 @@ int main(int argc, char** argv) {
 			
 			mpc_ast_print(ast);
 						
-			lval* x = lval_read(ast);
+			lval* x = lval_eval(lval_read(ast));
 			lval_println(x);
+			
+			lval_del(x);
 
 			mpc_ast_delete(ast);
 			
