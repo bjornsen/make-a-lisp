@@ -13,7 +13,8 @@ enum { LVAL_INT, LVAL_FLOAT, LVAL_SYM, LVAL_SEXPR, LVAL_ERR };
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 
 // Defines possible return values for a lisp value
-typedef struct {
+typedef struct lval lval;
+struct lval {
 	int type;
 	long i;
 	double f;
@@ -23,7 +24,7 @@ typedef struct {
 	// Count and pointer to a list of "lval*"
 	int count;
 	struct lval** cell;
-} lval;
+};
 
 lval* lval_int(int x) {
 	lval* v = malloc(sizeof(lval));
@@ -194,16 +195,14 @@ lval* lval_take(lval* v, int i) {
 
 lval* builtin_op(lval* a, char* op) {
 	
-//	for (int i = 0; i < a->count; i++) {
-//		lval* x = a->cell[i];
-//		int type = x->type;
-//		printf("Type is %i", type);
-//		printf("Type is %i", LVAL_INT);
-//		if ((type != LVAL_INT) || (type != LVAL_FLOAT))  {
-//			lval_del(a);
-//			return lval_err("Cannot operate on non-number!");
-//		}
-//	}
+	// Check to make sure we're operating on numbers
+	for (int i = 0; i < a->count; i++) {
+		int type = a->cell[i]->type;
+		if ((type != LVAL_INT) && (type != LVAL_FLOAT))  {
+			lval_del(a);
+			return lval_err("Cannot operate on non-number!");
+		}
+	}
 	
 	lval* x = lval_pop(a, 0);
 	bool is_float = false;
@@ -250,12 +249,12 @@ lval* builtin_op(lval* a, char* op) {
 		
 		if (strcmp(op, "max") == 0) {
 			if (x->f < y->f) {
-				x = y;
+				x->f = y->f;
 			}
 		}
 		if (strcmp(op, "min") == 0) {
 			if (x->f > y->f) {
-				x = y;
+				x->f = y->f;
 			}
 		}
 			
@@ -279,12 +278,12 @@ lval* builtin_op(lval* a, char* op) {
 			}
 			if (strcmp(op, "max") == 0) {
 				if (x->i < y->i) {
-					x = y;
+					x->i = y->i;
 				}
 			}
 			if (strcmp(op, "min") == 0) {
 				if (x->i > y->i) {
-					x = y;
+					x->i = y->i;
 				}
 			}
 		}
