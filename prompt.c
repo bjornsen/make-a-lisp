@@ -6,6 +6,9 @@
 
 #include "mpc.h"
 
+#define LASSERT(args, cond, err) \
+  if (!(cond)) { lval_del(args); return lval_err(err); }
+
 // Lisp value (lval) types
 enum { LVAL_INT, LVAL_FLOAT, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR, LVAL_ERR };
 
@@ -206,20 +209,14 @@ lval* lval_take(lval* v, int i) {
 }
 
 lval* builtin_head(lval* a) {
-	if (a->count != 1) {
-		lval_del(a);
-		return lval_err("Function 'head' passed too many arguments");
-	}
+	LASSERT(a, a->count == 1,
+	  "Function 'head' passed too many arguments");
 	
-	if (a->type != LVAL_QEXPR) {
-		lval_del(a);
-		return lval_err("Function 'head' requires a Q-expression");
-	}
+	LASSERT(a, a->type != LVAL_QEXPR,
+	  "Function 'head' requires a Q-expression");
 	
-	if (a->cell[0]->count == 0) {
-		lval_del(a);
-		return lval_err("Function 'head' passed an emptry Q-expression");
-	}
+	LASSERT(a, a->cell[0]->count == 0, 
+		"Function 'head' passed an emptry Q-expression");
 	
 	// Take the first element and delete the remaining
 	lval* v = lval_take(a, 0);
@@ -228,20 +225,14 @@ lval* builtin_head(lval* a) {
 }
 
 lval* builtin_tail(lval* a) {
-	if (a->count != 1) {
-		lval_del(a);
-		return lval_err("Function 'head' passed too many arguments");
-	}
+	LASSERT(a, a->count != 1,
+	  "Function 'head' passed too many arguments");
 	
-	if (a->cell[0]->type != LVAL_QEXPR) {
-		lval_del(a);
-		return lval_err("Function 'head' requires a Q-expression");
-	}
+	LASSERT(a, a->cell[0]->type != LVAL_QEXPR,
+	  "Function 'head' requires a Q-expression");
 	
-	if (a->cell[0]->count == 0) {
-		lval_del(a);
-		return lval_err("Function 'tail' passed empty Q-epxression {}");
-	}
+	LASSERT(a, a->cell[0]->count == 0, 
+	  "Function 'tail' passed empty Q-epxression {}");
 	
 	// Take the first argument, delete the first element, and return
 	lval* v = lval_take(a,0);
