@@ -212,11 +212,11 @@ lval* builtin_head(lval* a) {
 	LASSERT(a, a->count == 1,
 	  "Function 'head' passed too many arguments");
 	
-	LASSERT(a, a->type != LVAL_QEXPR,
+	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
 	  "Function 'head' requires a Q-expression");
 	
-	LASSERT(a, a->cell[0]->count == 0, 
-		"Function 'head' passed an emptry Q-expression");
+	LASSERT(a, a->cell[0]->count != 0, 
+		"Function 'head' passed an empty Q-expression");
 	
 	// Take the first element and delete the remaining
 	lval* v = lval_take(a, 0);
@@ -225,19 +225,63 @@ lval* builtin_head(lval* a) {
 }
 
 lval* builtin_tail(lval* a) {
-	LASSERT(a, a->count != 1,
-	  "Function 'head' passed too many arguments");
+	LASSERT(a, a->count == 1,
+	  "Function 'tail' passed too many arguments");
 	
-	LASSERT(a, a->cell[0]->type != LVAL_QEXPR,
-	  "Function 'head' requires a Q-expression");
+	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+	  "Function 'tail' requires a Q-expression");
 	
-	LASSERT(a, a->cell[0]->count == 0, 
-	  "Function 'tail' passed empty Q-epxression {}");
+	LASSERT(a, a->cell[0]->count != 0, 
+	  "Function 'tail' passed empty Q-expression {}");
 	
 	// Take the first argument, delete the first element, and return
 	lval* v = lval_take(a,0);
 	lval_del(lval_pop(v,0));
 	return v;
+}
+
+lval* builtin_list(lval* a) {
+	a->type = LVAL_QEXPR;
+	return a;
+}
+
+lval* lval_eval(lval* a);
+lval* builtin_eval(lval* a) {
+	LASSERT(a, a->count == 1,
+	  "Function 'eval' passed too many arguments");
+	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+	  "Function 'eval' not passed a Q-expression");
+	  
+	lval* x = lval_take(a, 0);
+	x->type = LVAL_SEXPR;
+	return lval_eval(x);
+}
+
+lval* lval_join(lval* x, lval* y) {
+	
+	// Add each element of y to x
+	while (y->count) {
+		x = lval_add(x, lval_pop(y, 0));
+	}
+	
+	lval_del(y);
+	return x;
+}
+
+lval* builtin_join(lval* a) {
+	for (int i = 0; i < a->count; i++) {
+		LASSERT(a, a->cell[i]->type == LVAL_QEXPR,
+		  "Function 'join' passed incorrect type.");
+	}
+	
+	lval* x = lval_pop(a, 0);
+	
+	while (a->count) {
+		x = lval_join(x, lval_pop(a, 0));
+	}
+	
+	lval_del(a);
+	return x;
 }
 
 lval* builtin_op(lval* a, char* op) {
@@ -341,6 +385,18 @@ lval* builtin_op(lval* a, char* op) {
 	return x;
 }
 
+
+lval* builtin(lval* a, char* func) {
+	if (strcmp("list", func) == 0) { return builtin_list(a); }
+	if (strcmp("head", func) == 0) { return builtin_head(a); }
+	if (strcmp("tail", func) == 0) { return builtin_tail(a); }
+	if (strcmp("join", func) == 0) { return builtin_join(a); }
+	if (strcmp("eval", func) == 0) { return builtin_eval(a); }
+	if (strstr("+-/*% max min", func)) { return builtin_op(a, func); }
+	lval_del(a);
+	return lval_err("Unknown function");
+}
+
 lval* lval_eval(lval* v);
 
 lval* lval_eval_sexpr(lval* v) {
@@ -374,7 +430,7 @@ lval* lval_eval_sexpr(lval* v) {
 	}
 	
 	// Call builtin with operator
-	lval* result = builtin_op(v, first->sym);
+	lval* result = builtin(v, first->sym);
 	lval_del(first);
 	return result;
 }
