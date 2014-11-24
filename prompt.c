@@ -7,7 +7,7 @@
 #include "mpc.h"
 
 // Lisp value (lval) types
-enum { LVAL_INT, LVAL_FLOAT, LVAL_SYM, LVAL_SEXPR, LVAL_ERR };
+enum { LVAL_INT, LVAL_FLOAT, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR, LVAL_ERR };
 
 // Error types
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
@@ -56,6 +56,14 @@ lval* lval_sexpr(void) {
 	return v;
 }
 
+lval* lval_qexpr(void) {
+	lval* v = malloc(sizeof(lval));
+	v->type = LVAL_QEXPR;
+	v->count = 0;
+	v->cell = NULL;
+	return v;
+}
+
 lval* lval_err(char* m) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_ERR;
@@ -70,6 +78,8 @@ void lval_del(lval* v) {
 		case LVAL_ERR: free(v->err); break;
 		case LVAL_SYM: free(v->sym); break;
 		
+		// Q-expressions and S-expressions are deallocated in the same way
+		case LVAL_QEXPR:
 		case LVAL_SEXPR:
 			for (int i = 0; i < v-> count; i++) {
 				lval_del(v->cell[i]);
@@ -116,10 +126,11 @@ lval* lval_read(mpc_ast_t* ast) {
 	if (strstr(ast->tag, "float")) { return lval_read_float(ast); }
 	if (strstr(ast->tag, "symbol")) { return lval_sym(ast->contents); }
 	
-	// If root ">" or sexpr then create empty list
+	// If root ">", sexpr, or qexpr then create empty list
 	lval* x = NULL;
 	if (strcmp(ast->tag, ">") == 0) { x = lval_sexpr(); }
 	if (strcmp(ast->tag, "sexpr")) { x = lval_sexpr(); }
+	if (strstr(ast->tag, "qexpr")) { x = lval_qexpr(); }
 	
 	for (int i = 0; i < ast->children_num; i++) {
 		if (strcmp(ast->children[i]->contents, "(") == 0) { continue; }
@@ -155,6 +166,7 @@ void lval_print(lval* v) {
 		case LVAL_ERR: printf("%s", v->err); break;
 		case LVAL_SYM: printf("%s", v->sym); break;
 		case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
+		case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
 	}
 }
 
@@ -346,6 +358,7 @@ int main(int argc, char** argv) {
 	mpc_parser_t* Float = mpc_new("float");
 	mpc_parser_t* Symbol = mpc_new("symbol");
 	mpc_parser_t* Sexpr = mpc_new("sexpr");
+	mpc_parser_t* Qexpr = mpc_new("qexpr");
 	mpc_parser_t* Expr = mpc_new("expr");
 	mpc_parser_t* Bilisp = mpc_new("bilisp");
 
@@ -362,13 +375,15 @@ int main(int argc, char** argv) {
   						 | \"max\" \
   						 | \"min\" ; \
   		sexpr    : '(' <expr>* ')' ; \
+  		qexpr    : '{' <expr>* '}' ; \
   		expr     : <float> \
   						 | <integer> \
   						 | <symbol> \
+  						 | <qexpr> \
   						 | <sexpr> ; \
   		bilisp   : /^/ <expr>* /$/ ; \
   	",
-  	Integer, Float, Symbol, Sexpr, Expr, Bilisp);
+  	Integer, Float, Symbol, Sexpr, Qexpr, Expr, Bilisp);
 	
 	puts("Bilisp 0.0.0.0.1");
 	puts("Press Ctrl+c to Exit\n");
@@ -384,11 +399,11 @@ int main(int argc, char** argv) {
 		if (mpc_parse("<stdin>", input, Bilisp, &r)) {
 			mpc_ast_t* ast = r.output;
 			
-			mpc_ast_print(ast);
+//			mpc_ast_print(ast);
 			
 			lval* l = lval_read(ast);
 			
-			lval_println(l);
+//			lval_println(l);
 			
 			lval* x = lval_eval(l);
 			lval_println(x);
@@ -407,7 +422,7 @@ int main(int argc, char** argv) {
 	}
 	
 	/* Undefine and delete parsers */
-	mpc_cleanup(5, Integer, Float, Symbol, Sexpr, Expr, Bilisp);
+	mpc_cleanup(7, Integer, Float, Symbol, Sexpr, Qexpr, Expr, Bilisp);
 	
 	return 0;
 }
