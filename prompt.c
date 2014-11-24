@@ -205,6 +205,50 @@ lval* lval_take(lval* v, int i) {
 	return item;
 }
 
+lval* builtin_head(lval* a) {
+	if (a->count != 1) {
+		lval_del(a);
+		return lval_err("Function 'head' passed too many arguments");
+	}
+	
+	if (a->type != LVAL_QEXPR) {
+		lval_del(a);
+		return lval_err("Function 'head' requires a Q-expression");
+	}
+	
+	if (a->cell[0]->count == 0) {
+		lval_del(a);
+		return lval_err("Function 'head' passed an emptry Q-expression");
+	}
+	
+	// Take the first element and delete the remaining
+	lval* v = lval_take(a, 0);
+	while (v->count > 1) { lval_del(lval_pop(v,1)); }
+	return v;
+}
+
+lval* builtin_tail(lval* a) {
+	if (a->count != 1) {
+		lval_del(a);
+		return lval_err("Function 'head' passed too many arguments");
+	}
+	
+	if (a->cell[0]->type != LVAL_QEXPR) {
+		lval_del(a);
+		return lval_err("Function 'head' requires a Q-expression");
+	}
+	
+	if (a->cell[0]->count == 0) {
+		lval_del(a);
+		return lval_err("Function 'tail' passed empty Q-epxression {}");
+	}
+	
+	// Take the first argument, delete the first element, and return
+	lval* v = lval_take(a,0);
+	lval_del(lval_pop(v,0));
+	return v;
+}
+
 lval* builtin_op(lval* a, char* op) {
 	
 	// Check to make sure we're operating on numbers
@@ -373,7 +417,12 @@ int main(int argc, char** argv) {
   						 | '^' \
   						 | '%' \
   						 | \"max\" \
-  						 | \"min\" ; \
+  						 | \"min\" \
+  						 | \"list\" \
+  						 | \"head\" \
+  						 | \"tail\" \
+  						 | \"join\" \
+  						 | \"eval\" ; \
   		sexpr    : '(' <expr>* ')' ; \
   		qexpr    : '{' <expr>* '}' ; \
   		expr     : <float> \
