@@ -240,6 +240,26 @@ lval* builtin_tail(lval* a) {
 	return v;
 }
 
+lval* builtin_len(lval* a) {
+	LASSERT(a, a->count == 1,
+		"Function 'len' passed too many arguments");
+		
+	LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
+		"Function 'len' requires a Q-expression");
+		
+	return lval_int(a->cell[1]->count);
+}
+
+lval* builtin_cons(lval* a) {
+	LASSERT(a, a->count == 2,
+		"Function 'cons' not passed two elements");
+	
+	LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
+		"Second value to 'cons' is not a Q-Expression");
+		
+	
+}
+
 lval* builtin_list(lval* a) {
 	a->type = LVAL_QEXPR;
 	return a;
@@ -392,6 +412,7 @@ lval* builtin(lval* a, char* func) {
 	if (strcmp("tail", func) == 0) { return builtin_tail(a); }
 	if (strcmp("join", func) == 0) { return builtin_join(a); }
 	if (strcmp("eval", func) == 0) { return builtin_eval(a); }
+	if (strcmp("len", func) == 0) { return builtin_len(a); }
 	if (strstr("+-/*% max min", func)) { return builtin_op(a, func); }
 	lval_del(a);
 	return lval_err("Unknown function");
@@ -469,6 +490,7 @@ int main(int argc, char** argv) {
   						 | \"head\" \
   						 | \"tail\" \
   						 | \"join\" \
+  						 | \"len\" \
   						 | \"eval\" ; \
   		sexpr    : '(' <expr>* ')' ; \
   		qexpr    : '{' <expr>* '}' ; \
