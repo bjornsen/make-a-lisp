@@ -9,6 +9,11 @@
 #define LASSERT(args, cond, err) \
   if (!(cond)) { lval_del(args); return lval_err(err); }
 
+#define LASSERTARGS(args, num_args, func) \
+	char tmp_args_buffer [200]; \
+	sprintf(tmp_args_buffer, "Function '%s' passed %i arguments; expected %i", func, args->count, num_args); \
+	LASSERT(args, args->count == num_args, tmp_args_buffer)
+
 // Lisp value (lval) types
 enum { LVAL_INT, LVAL_FLOAT, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR, LVAL_ERR };
 
@@ -123,6 +128,14 @@ lval* lval_add(lval* list, lval* element) {
 	return list;
 }
 
+lval* lval_append(lval* element, lval* list) {
+	list->count++;
+	list->cell = realloc(list->cell, sizeof(lval*) * list->count);
+	memmove(&list->cell[1], &list->cell[0], sizeof(lval*) * (list->count - 1));
+	list->cell[0] = element;
+	return list;
+}
+
 lval* lval_read(mpc_ast_t* ast) {
 	
 	if (strstr(ast->tag, "int")) { return lval_read_int(ast); }
@@ -209,8 +222,7 @@ lval* lval_take(lval* v, int i) {
 }
 
 lval* builtin_head(lval* a) {
-	LASSERT(a, a->count == 1,
-	  "Function 'head' passed too many arguments");
+	LASSERTARGS(a, 1, "head");
 	
 	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
 	  "Function 'head' requires a Q-expression");
@@ -225,8 +237,7 @@ lval* builtin_head(lval* a) {
 }
 
 lval* builtin_tail(lval* a) {
-	LASSERT(a, a->count == 1,
-	  "Function 'tail' passed too many arguments");
+	LASSERTARGS(a, 1, "tail");
 	
 	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
 	  "Function 'tail' requires a Q-expression");
@@ -241,8 +252,7 @@ lval* builtin_tail(lval* a) {
 }
 
 lval* builtin_len(lval* a) {
-	LASSERT(a, a->count == 1,
-		"Function 'len' passed too many arguments");
+	LASSERTARGS(a, 1, "len");
 		
 	LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
 		"Function 'len' requires a Q-expression");
@@ -251,13 +261,16 @@ lval* builtin_len(lval* a) {
 }
 
 lval* builtin_cons(lval* a) {
-	LASSERT(a, a->count == 2,
-		"Function 'cons' not passed two elements");
+	LASSERTARGS(a, 2, "cons");
 	
-	LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
+	LASSERT(a, a->cell[2]->type == LVAL_QEXPR,
 		"Second value to 'cons' is not a Q-Expression");
 		
+	lval* first = lval_pop(a,0);
+	lval* rest = lval_pop(a,0);
+	lval_del(a);
 	
+	return lval_append(first, rest);
 }
 
 lval* builtin_list(lval* a) {
@@ -267,8 +280,8 @@ lval* builtin_list(lval* a) {
 
 lval* lval_eval(lval* a);
 lval* builtin_eval(lval* a) {
-	LASSERT(a, a->count == 1,
-	  "Function 'eval' passed too many arguments");
+	LASSERTARGS(a, 1, "eval");
+
 	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
 	  "Function 'eval' not passed a Q-expression");
 	  
@@ -413,6 +426,7 @@ lval* builtin(lval* a, char* func) {
 	if (strcmp("join", func) == 0) { return builtin_join(a); }
 	if (strcmp("eval", func) == 0) { return builtin_eval(a); }
 	if (strcmp("len", func) == 0) { return builtin_len(a); }
+	if (strcmp("cons", func) == 0) { return builtin_cons(a); }
 	if (strstr("+-/*% max min", func)) { return builtin_op(a, func); }
 	lval_del(a);
 	return lval_err("Unknown function");
@@ -491,6 +505,7 @@ int main(int argc, char** argv) {
   						 | \"tail\" \
   						 | \"join\" \
   						 | \"len\" \
+  						 | \"cons\" \
   						 | \"eval\" ; \
   		sexpr    : '(' <expr>* ')' ; \
   		qexpr    : '{' <expr>* '}' ; \
